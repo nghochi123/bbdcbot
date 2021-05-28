@@ -37,7 +37,7 @@ main = async () => {
 
 scheduleJob = () => {
   // Check for auto book
-  cron.schedule("5 * * * *", async () => {
+  cron.schedule("*/15 * * * *", async () => {
     ping();
     console.log("Doing a job.");
     telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, "Looking for a slot...");
