@@ -1,3 +1,10 @@
+/* PROCESS ENV VARIABLES:
+TELEGRAM TOKEN
+TELEGRAM_CHAT_ID
+
+
+*/
+
 require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
@@ -12,6 +19,8 @@ const BBDC_SLOTS_LISTING_URL =
 const BBDC_BOOKING_URL =
   "http://www.bbdc.sg/bbdc/b-3c-pLessonBookingDetails.asp";
 
+const Telegram = require("telegraf/telegram");
+const telegram = new Telegram(process.env.TELEGRAM_TOKEN);
 let loginSession;
 // Stores all slots discovered here so that same slot wont be notified everytime the bot checks
 let slotHistory = {};
@@ -20,13 +29,18 @@ const app = express();
 const PORT = process.env.PORT || 1234;
 
 main = async () => {
+  telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, `BBDC Bot started.`, {
+    parse_mode: "HTML",
+  });
   scheduleJob();
 };
 
 scheduleJob = () => {
   // Check for auto book
-  cron.schedule("0,5,10,15,20,25,30,35,40,45,50,55 * * * *", async () => {
+  cron.schedule("5 * * * *", async () => {
+    ping();
     console.log("Doing a job.");
+    telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, "Looking for a slot...");
     const [cookie] = await getCookie();
     [loginSession] = cookie.split(";");
     await login();
@@ -36,7 +50,6 @@ scheduleJob = () => {
       ...slots,
       ...slotHistory,
     };
-    console.log("Attempting to book slots...");
     autoBook(slots);
   });
 };
@@ -103,7 +116,8 @@ autoBook = async (slots) => {
       console.log("Diff in date: " + date.diff(today, "days"));
       if (date.diff(today, "days") >= 2) {
         createBooking(slots[slot]);
-        console.log(
+        telegram.sendMessage(
+          process.env.TELEGRAM_CHAT_ID,
           "Booking slot for " +
             slots[slot]["date"] +
             ". From " +
@@ -163,7 +177,10 @@ parseSlotsListing = (data) => {
 };
 
 createBooking = async (slotID) => {
-  console.log("Slot booking started, slot ID is:" + slotID.slotID);
+  telegram.sendMessage(
+    process.env.TELEGRAM_CHAT_ID,
+    "Slot booking started, slot ID is:" + slotID.slotID
+  );
   try {
     const data = {
       accId: process.env.ACCID,
@@ -185,7 +202,7 @@ createBooking = async (slotID) => {
       "body > table > tbody > tr > td:nth-child(2) > form > table > tbody > tr:nth-child(1) > td > table > tbody > tr:nth-child(3) > td.errtblmsg"
     );
     if (errorMessage.is(".errtblmsg")) {
-      console.log("Booking confirmed!");
+      telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, errorMessage.text());
     }
   } catch (error) {
     console.error(error);
@@ -194,19 +211,20 @@ createBooking = async (slotID) => {
 
 sendPrettifiedSlotsMessage = async (data) => {
   if (Object.keys(data).length === 0) {
-    console.log("Unable to find any slots");
+    telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, "No Slots Found");
     return;
   }
 
   let message = "";
   for (slot in data) {
-    message = message + "🚗 " + data[slot].info + "\n";
+    if (message.length <= 70)
+      message = message + "🚗 " + data[slot].info + "\n";
   }
-  console.log(message);
+  telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, message);
 };
 
-deleteMessage = (messageID) => {
-  console.log(messageID);
+ping = () => {
+  axios.get(process.env.HEROKU_URL);
 };
 
 app.get("/", (req, res) => res.send("Hello World!"));
