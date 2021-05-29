@@ -1,7 +1,10 @@
 /* PROCESS ENV VARIABLES:
 TELEGRAM TOKEN
 TELEGRAM_CHAT_ID
-
+HEROKU_URL
+NRIC
+BBDC_PASSWORD
+ACCID
 
 */
 
@@ -139,7 +142,7 @@ populatePreference = () => {
     defPLVenue: "1",
     DAY: [1, 2, 3, 4, 5, 6, 7],
     SESSION: [1, 2, 3, 4, 5, 6, 7, 8],
-    MONTH: ["May/2021", "Jun/2021"],
+    MONTH: ["May/2021", "Jun/2021", "Nov/2021"],
   };
 
   return data;
