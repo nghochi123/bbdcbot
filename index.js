@@ -142,7 +142,7 @@ populatePreference = () => {
     defPLVenue: "1",
     DAY: [1, 2, 3, 4, 5, 6, 7],
     SESSION: [1, 2, 3, 4, 5, 6, 7, 8],
-    MONTH: ["Jun/2021", "Jul/2021"],
+    MONTH: ["Jun/2021", "Jul/2021", "Nov/2021"],
   };
 
   return data;
