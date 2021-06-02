@@ -40,7 +40,7 @@ main = async () => {
 
 scheduleJob = () => {
   // Check for auto book
-  cron.schedule("5 * * * *", async () => {
+  cron.schedule("*/30 * * * *", async () => {
     ping();
     console.log("Doing a job.");
     telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, "Looking for a slot...");
@@ -142,7 +142,7 @@ populatePreference = () => {
     defPLVenue: "1",
     DAY: [1, 2, 3, 4, 5, 6, 7],
     SESSION: [1, 2, 3, 4, 5, 6, 7, 8],
-    MONTH: ["May/2021", "Jun/2021", "Nov/2021"],
+    MONTH: ["Jun/2021", "Jul/2021", "Nov/2021"],
   };
 
   return data;
