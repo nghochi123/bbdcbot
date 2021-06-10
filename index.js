@@ -78,7 +78,10 @@ login = async () => {
         Cookie: loginSession,
       },
     };
-    await axios.post(BBDC_LOGIN_URL, qs.stringify(data), config);
+    await axios
+      .post(BBDC_LOGIN_URL, qs.stringify(data), config)
+      .then((res) => console.log(res))
+      .catch((error) => console.log(error));
   } catch (error) {
     console.error(error);
   }
@@ -114,7 +117,7 @@ autoBook = async (slots) => {
       const date = moment(dateStr[0], "D/M/YYYY");
       console.log(slots[slot]);
       console.log("Diff in date: " + date.diff(today, "days"));
-      if (date.diff(today, "days") >= 2) {
+      if (date.diff(today, "days") >= 1) {
         createBooking(slots[slot]);
         telegram.sendMessage(
           process.env.TELEGRAM_CHAT_ID,
@@ -139,7 +142,7 @@ populatePreference = () => {
     defPLVenue: "1",
     DAY: [1, 2, 3, 4, 5, 6, 7],
     SESSION: [1, 2, 3, 4, 5, 6, 7, 8],
-    MONTH: ["May/2021", "Jun/2021"],
+    MONTH: ["Jun/2021", "Jul/2021"],
   };
 
   return data;
