@@ -1,7 +1,6 @@
 /* PROCESS ENV VARIABLES:
 TELEGRAM TOKEN
 TELEGRAM_CHAT_ID
-HEROKU_URL
 NRIC
 BBDC_PASSWORD
 ACCID
@@ -21,7 +20,8 @@ const BBDC_SLOTS_LISTING_URL =
   "http://www.bbdc.sg/bbdc/b-3c-pLessonBooking1.asp";
 const BBDC_BOOKING_URL =
   "http://www.bbdc.sg/bbdc/b-3c-pLessonBookingDetails.asp";
-
+const BBDC_TPDS_SELECT_URL = "http://www.bbdc.sg/bbdc/b-selectTPDSModule.asp";
+const BBDC_TPDS_SLOTS_URL = "http://www.bbdc.sg/bbdc/b-TPDSBooking1.asp";
 const Telegram = require("telegraf/telegram");
 const telegram = new Telegram(process.env.TELEGRAM_TOKEN);
 let loginSession;
@@ -29,19 +29,18 @@ let loginSession;
 let slotHistory = {};
 
 const app = express();
-const PORT = process.env.PORT || 1234;
+const PORT = process.env.PORT || 8000;
 
 main = async () => {
   telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, `BBDC Bot started.`, {
     parse_mode: "HTML",
   });
-  scheduleJob();
+  scheduleJobTP();
 };
 
 scheduleJob = () => {
   // Check for auto book
-  cron.schedule("*/30 * * * *", async () => {
-    ping();
+  cron.schedule("*/2 * * * *", async () => {
     console.log("Doing a job.");
     telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, "Looking for a slot...");
     const [cookie] = await getCookie();
@@ -54,6 +53,28 @@ scheduleJob = () => {
       ...slotHistory,
     };
     autoBook(slots);
+  });
+};
+
+scheduleJobTP = () => {
+  cron.schedule("*/2 * * * *", async () => {
+    console.log("Doing a job (TPDS).");
+    telegram.sendMessage(
+      process.env.TELEGRAM_CHAT_ID,
+      "Looking for a TPDS slot..."
+    );
+    const [cookie] = await getCookie();
+    [loginSession] = cookie.split(";");
+    await login();
+    await selectModuleTP(2);
+    await timeout(10000);
+    const slots = await getSlotsTP(populatePreferenceTP());
+    sendPrettifiedSlotsMessage(slots);
+    // slotHistory = {
+    //   ...slots,
+    //   ...slotHistory,
+    // };
+    // autoBook(slots);
   });
 };
 
@@ -81,7 +102,7 @@ login = async () => {
         Cookie: loginSession,
       },
     };
-    await axios.post(BBDC_LOGIN_URL, qs.stringify(data), config).then(res=>console.log(res)).catch(err=>console.log(error));
+    await axios.post(BBDC_LOGIN_URL, qs.stringify(data), config);
   } catch (error) {
     console.error(error);
   }
@@ -102,6 +123,50 @@ getSlots = async (preference) => {
       qs.stringify(preference),
       config
     );
+    return parseSlotsListing(response.data);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+timeout = (ms) => {
+  return new Promise((res) => setTimeout(res, ms));
+};
+
+selectModuleTP = async (n) => {
+  const config = {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: loginSession,
+    },
+  };
+  const response = await axios.post(
+    BBDC_TPDS_SELECT_URL,
+    qs.stringify({
+      optTest: n,
+      btnSubmit: "Submit",
+    }),
+    config
+  );
+  console.log(response.data);
+};
+
+getSlotsTP = async (preference) => {
+  console.log("Checking slots");
+
+  try {
+    const config = {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: loginSession,
+      },
+    };
+    const response = await axios.post(
+      BBDC_TPDS_SLOTS_URL,
+      qs.stringify(preference),
+      config
+    );
+    console.log(response);
     return parseSlotsListing(response.data);
   } catch (error) {
     console.error(error);
@@ -142,13 +207,57 @@ populatePreference = () => {
     defPLVenue: "1",
     DAY: [1, 2, 3, 4, 5, 6, 7],
     SESSION: [1, 2, 3, 4, 5, 6, 7, 8],
-    MONTH: ["Jun/2021", "Jul/2021", "Nov/2021"],
+    MONTH: ["Jul/2021", "Aug/2021"],
+  };
+
+  return data;
+};
+
+populatePreferenceTP = () => {
+  const data = {
+    accid: process.env.ACCID,
+    MONTH: ["Jul/2021", "Aug/2021"],
+    SESSION: [1],
+    DAY: [1, 2, 3, 4, 5, 6, 7],
+    defPEVenue: "1",
+    optVenue: "1",
   };
 
   return data;
 };
 
 parseSlotsListing = (data) => {
+  let re = /"(.*?)"/g;
+  let slots = {};
+  const $ = cheerio.load(data);
+  $(
+    "#myform > table:nth-child(2) > tbody > tr:nth-child(10) > td > table > tbody > tr > td[onmouseover]"
+  ).each(function (i, elem) {
+    let slotInfo = $(this).attr("onmouseover").matchAll(re);
+    slotInfo = Array.from(slotInfo);
+    const slotID = $(this).children().attr("value");
+    const date = slotInfo[0][1];
+    const session = slotInfo[1][1];
+    const start = slotInfo[2][1];
+    const end = slotInfo[3][1];
+
+    if (!(slotID in slotHistory)) {
+      let informationStr = `New slot found on ${date}, Session: ${session} (${start} - ${end})`;
+      slots[slotID] = {
+        info: informationStr,
+        date: date,
+        start: start,
+        end: end,
+        session: session,
+        slotID: slotID,
+      };
+    }
+  });
+
+  return slots;
+};
+
+parseSlotsListingTP = (data) => {
   let re = /"(.*?)"/g;
   let slots = {};
   const $ = cheerio.load(data);
@@ -224,10 +333,6 @@ sendPrettifiedSlotsMessage = async (data) => {
       message = message + "🚗 " + data[slot].info + "\n";
   }
   telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, message);
-};
-
-ping = () => {
-  axios.get(process.env.HEROKU_URL);
 };
 
 app.get("/", (req, res) => res.send("Hello World!"));
